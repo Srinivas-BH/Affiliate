@@ -1,10 +1,10 @@
 /**
- * Meesho Strategy - Link-only strategy
- * Stores affiliate link for redirection only, no price tracking
+ * Meesho Strategy - Manual Data Entry (Updated)
+ * Allows Admin to enter Price/Title manually so "Notify Me" works.
  */
 class MeeshoStrategy {
   constructor() {
-    this.name = "LINK_ONLY";
+    this.name = "MANUAL"; // Changed from LINK_ONLY to MANUAL
   }
 
   /**
@@ -19,23 +19,30 @@ class MeeshoStrategy {
       throw new Error("Invalid Meesho link");
     }
 
+    // Require price/title so notifications work
+    if (!data.title || !data.price) {
+      throw new Error("Title and Price are required for Meesho products");
+    }
+
     return true;
   }
 
   /**
-   * Format product data for storage (minimal data for link-only strategy)
+   * Format product data for storage
    */
   formatProductData(data, affiliateLink) {
     return {
       title: data.title || "Meesho Product",
       description: data.description || "",
-      category: data.category || "General",
+      category: data.category || "Fashion", // Default to Fashion for Meesho
       tags: data.tags || [],
       imageUrl: data.imageUrl || "",
       affiliateLink: affiliateLink || data.affiliateLink,
       platform: "MEESHO",
-      strategy: "LINK_ONLY",
-      price: 0, // Not tracked for Meesho
+      strategy: "MANUAL",
+      price: data.price, // [FIX] Now stores the real price you enter
+      originalPrice: data.originalPrice || data.price,
+      discount: data.discount || 0,
       lastUpdated: new Date(),
       freshness: "FRESH",
     };
