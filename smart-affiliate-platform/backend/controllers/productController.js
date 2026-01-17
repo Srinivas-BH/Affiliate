@@ -1,9 +1,10 @@
 const Product = require("../models/Product");
 const UserRequest = require("../models/UserRequest");
 const StrategyResolver = require("../strategies/StrategyResolver");
-const { extractAsin } = require("../utils/detectPlatform");
+const { extractAsin, detectPlatform } = require("../utils/detectPlatform");
 const { sendProductNotification } = require("../utils/mailer");
 
+<<<<<<< HEAD
 /**
  * Add new product (Admin only)
  */
@@ -42,25 +43,76 @@ exports.addProduct = async (req, res) => {
  */
 exports.saveAndNotify = async (product) => {
   try {
+=======
+// ... [Keep addProduct function as is] ...
+// (Only showing the critical saveAndNotify function that handles the logic)
+
+/**
+ * Save product and notify matching user requests
+ * [UPDATED] Handles duplicate checks and immediate fulfillment
+ */
+exports.saveAndNotify = async (product) => {
+  try {
+    // Find matching user requests (Active only)
+>>>>>>> b3836940e79f642ff476c9e46780cd833dca6458
     const matches = await UserRequest.find({
       "parsedTags.category": { $regex: product.category, $options: "i" },
       isFulfilled: false,
       status: "ACTIVE",
     });
+<<<<<<< HEAD
     for (const request of matches) {
       try {
         await sendProductNotification(request.userEmail, product);
         request.matchedProducts.push(product._id);
         if (request.matchedProducts.length >= 3) {
+=======
+
+    console.log(`Found ${matches.length} matching requests for product: ${product.title}`);
+
+    for (const request of matches) {
+      // 1. Precise Matching Logic
+      if (request.parsedTags.maxPrice && product.price > request.parsedTags.maxPrice) continue;
+      if (request.parsedTags.minPrice && product.price < request.parsedTags.minPrice) continue;
+      if (request.parsedTags.platforms.length > 0 && !request.parsedTags.platforms.includes(product.platform)) continue;
+
+      try {
+        // 2. Send Email
+        await sendProductNotification(request.userEmail, product);
+
+        // 3. Update Request Data (Prevent Duplicates)
+        const alreadyMatched = request.matchedProducts.some(
+          (id) => id.toString() === product._id.toString()
+        );
+
+        if (!alreadyMatched) {
+          request.matchedProducts.push(product._id);
+          request.notificationsSent.push({
+            productId: product._id,
+            sentAt: new Date(),
+          });
+        }
+
+        // 4. [CRITICAL] Mark Fulfilled Immediately (Threshold = 1)
+        if (request.matchedProducts.length >= 1) {
+>>>>>>> b3836940e79f642ff476c9e46780cd833dca6458
           request.isFulfilled = true;
           request.status = "FULFILLED";
         }
         await request.save();
+<<<<<<< HEAD
       } catch (err) { console.error("Notify failed", err); }
+=======
+        console.log(`✅ Request Fulfilled! Notified ${request.userEmail} for ${product.title}`);
+      } catch (err) {
+        console.error(`Failed to notify ${request.userEmail}:`, err.message);
+      }
+>>>>>>> b3836940e79f642ff476c9e46780cd833dca6458
     }
   } catch (error) { console.error("SaveAndNotify error", error); }
 };
 
+<<<<<<< HEAD
 /**
  * Get all products (User view)
  */
@@ -159,3 +211,15 @@ exports.getProductStats = async (req, res) => {
     res.json({ success: true, stats });
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
+=======
+// ... [Keep other functions like getAllProducts, etc.] ...
+
+// Export all functions (ensure this matches your existing exports)
+exports.addProduct = async (req, res) => { /* ... existing code ... */ };
+exports.getAllProducts = async (req, res) => { /* ... existing code ... */ };
+exports.getProductById = async (req, res) => { /* ... existing code ... */ };
+exports.updateProduct = async (req, res) => { /* ... existing code ... */ }; // This calls saveAndNotify internally
+exports.deleteProduct = async (req, res) => { /* ... existing code ... */ };
+exports.trackClick = async (req, res) => { /* ... existing code ... */ };
+exports.getProductStats = async (req, res) => { /* ... existing code ... */ };
+>>>>>>> b3836940e79f642ff476c9e46780cd833dca6458

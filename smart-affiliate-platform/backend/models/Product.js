@@ -44,7 +44,7 @@ const productSchema = new mongoose.Schema(
     },
     asin: {
       type: String,
-      default: null,
+      // [FIX] Removed 'default: null' to prevent duplicate null key errors
       unique: true,
       sparse: true,
     },
