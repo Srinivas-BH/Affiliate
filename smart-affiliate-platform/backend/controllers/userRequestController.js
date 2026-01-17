@@ -18,7 +18,7 @@ exports.submitNotifyRequest = async (req, res) => {
     const parsedTags = parseNLPQuery(query);
 
     // Create user request
-    const userRequest = await UserRequest.create({
+    const userRequest = new UserRequest({
       userId: req.user.id,
       userEmail: req.user.email,
       naturalLanguageQuery: query,
@@ -34,7 +34,7 @@ exports.submitNotifyRequest = async (req, res) => {
     }
 
     if (parsedTags.maxPrice) {
-      filter.price = { $lte: parsedTags.maxPrice };
+      filter.price = { ...filter.price, $lte: parsedTags.maxPrice };
     }
 
     if (parsedTags.minPrice) {
@@ -59,6 +59,13 @@ exports.submitNotifyRequest = async (req, res) => {
       } catch (err) {
         console.error(`Failed to send notification:`, err.message);
       }
+    }
+
+    // [FIX] If we found at least 1 match immediately, mark as FULFILLED
+    if (userRequest.notificationsSent.length >= 1) {
+      userRequest.status = "FULFILLED";
+      userRequest.isFulfilled = true;
+      userRequest.fulfilledAt = new Date();
     }
 
     await userRequest.save();
