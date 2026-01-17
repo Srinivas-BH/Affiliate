@@ -214,3 +214,49 @@ exports.getRequestStats = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Delete a specific user request (Admin)
+ */
+exports.deleteRequest = async (req, res) => {
+  try {
+    const request = await UserRequest.findByIdAndDelete(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Request deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete request error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Delete all user requests (Admin)
+ */
+exports.deleteAllRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const filter = {};
+    if (status) {
+      filter.status = status;
+    }
+
+    const result = await UserRequest.deleteMany(filter);
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} request(s) deleted successfully`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Delete all requests error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

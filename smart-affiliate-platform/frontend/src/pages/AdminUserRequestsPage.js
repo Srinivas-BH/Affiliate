@@ -6,6 +6,8 @@ export default function AdminUserRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ACTIVE");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     fetchRequests();
@@ -22,6 +24,39 @@ export default function AdminUserRequestsPage() {
       console.error("Error fetching requests:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteRequest = async (requestId) => {
+    try {
+      setDeleting(true);
+      await api.delete(`/requests/admin/${requestId}`);
+      setDeleteConfirm(null);
+      fetchRequests();
+      alert("Request deleted successfully");
+    } catch (error) {
+      console.error("Error deleting request:", error);
+      alert("Failed to delete request");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      setDeleting(true);
+      const params = filter ? { status: filter } : {};
+      const response = await api.delete("/requests/admin/delete/all", { params });
+      setDeleteConfirm(null);
+      fetchRequests();
+      alert(
+        `${response.deletedCount} request(s) deleted successfully`
+      );
+    } catch (error) {
+      console.error("Error deleting requests:", error);
+      alert("Failed to delete requests");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -45,17 +80,71 @@ export default function AdminUserRequestsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">📋 User Requests</h1>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="FULFILLED">Fulfilled</option>
-            <option value="CANCELLED">Cancelled</option>
-            <option value="">All</option>
-          </select>
+          <div className="flex gap-4 items-center">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            >
+              <option value="ACTIVE">Active</option>
+              <option value="FULFILLED">Fulfilled</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="">All</option>
+            </select>
+            {requests.length > 0 && (
+              <button
+                onClick={() =>
+                  setDeleteConfirm(
+                    `delete-all-${filter || "all"}`
+                  )
+                }
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                disabled={deleting}
+              >
+                🗑️ Delete All
+              </button>
+            )}
+          </div>
         </div>
+
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-lg p-6 max-w-md">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                ⚠️ Confirm Delete
+              </h2>
+              <p className="text-gray-600 mb-6">
+                {deleteConfirm.startsWith("delete-all")
+                  ? `Are you sure you want to delete all ${
+                      filter ? filter.toLowerCase() : ""
+                    } requests? This action cannot be undone.`
+                  : "Are you sure you want to delete this request? This action cannot be undone."}
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteConfirm.startsWith("delete-all")) {
+                      handleDeleteAll();
+                    } else {
+                      handleDeleteRequest(deleteConfirm);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {requests.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-xl shadow-md">
@@ -75,21 +164,32 @@ export default function AdminUserRequestsPage() {
                       {request.naturalLanguageQuery}
                     </p>
                   </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                      request.status === "ACTIVE"
-                        ? "bg-green-100 text-green-700"
-                        : request.status === "FULFILLED"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {request.status}
-                  </span>
+                  <div className="flex gap-2">
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        request.status === "ACTIVE"
+                          ? "bg-green-100 text-green-700"
+                          : request.status === "FULFILLED"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {request.status}
+                    </span>
+                    <button
+                      onClick={() => setDeleteConfirm(request._id)}
+                      className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-sm font-semibold"
+                      title="Delete this request"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Parsed Information:</p>
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    Parsed Information:
+                  </p>
                   <div className="grid md:grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="font-semibold">Category:</span>{" "}
