@@ -5,8 +5,8 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem("user");
-    return savedUser ? JSON.parse(savedUser) : null;
+    const saved = localStorage.getItem("user");
+    return saved ? JSON.parse(saved) : null;
   });
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
@@ -19,9 +19,7 @@ export const AuthProvider = ({ children }) => {
           setUser(response.user);
           localStorage.setItem("user", JSON.stringify(response.user));
         } catch (error) {
-          if (error.response?.status === 401) {
-            logout();
-          }
+          if (error.response?.status === 401) logout();
         }
       }
       setLoading(false);
@@ -29,37 +27,23 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, [token]);
 
-  // Step 1: Initiate Login (Check Email)
+  // [NEW] Step 1: Send Email to Backend
   const initiateLogin = async (email) => {
-    try {
-      const response = await api.post("/auth/login-init", { email });
-      return response; // Returns { mode: 'PASSWORD' | 'OTP', message: ... }
-    } catch (error) {
-      console.error("Initiate login error:", error);
-      throw error;
-    }
+    // Returns { mode: 'PASSWORD' } or { mode: 'OTP' }
+    return await api.post("/auth/login-init", { email });
   };
 
-  // Step 2: Finalize Login (Verify)
+  // Step 2: Send Credential
   const login = async (email, password = null, otp = null) => {
-    try {
-      const response = await api.post("/auth/login", { email, password, otp });
-      
-      if (!response || !response.token || !response.user) {
-        throw new Error("Invalid response from server");
-      }
-      
+    const response = await api.post("/auth/login", { email, password, otp });
+    
+    if (response?.token) {
       localStorage.setItem("token", response.token);
       localStorage.setItem("user", JSON.stringify(response.user));
-      
       setToken(response.token);
       setUser(response.user);
-      
-      return response;
-    } catch (error) {
-      console.error("Login error:", error);
-      throw error;
     }
+    return response;
   };
 
   const logout = () => {
@@ -69,51 +53,23 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("user");
   };
 
-  const forgotPassword = async (email) => {
-    return api.post("/auth/forgot-password", { email });
-  };
-
-  const resetPassword = async (email, otp, newPassword) => {
-    return api.post("/auth/reset-password", { email, otp, newPassword });
-  };
-
+  // Other utilities...
+  const forgotPassword = (email) => api.post("/auth/forgot-password", { email });
+  const resetPassword = (data) => api.post("/auth/reset-password", data);
   const updateProfile = async (data) => {
-    const response = await api.put("/auth/profile", data);
-    setUser(response.user);
-    localStorage.setItem("user", JSON.stringify(response.user));
-    return response;
-  };
-
-  const checkIsAdmin = () => {
-    if (user?.role === "admin") return true;
-    if (!user && token) {
-      try {
-        const savedUser = localStorage.getItem("user");
-        if (savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          return parsedUser?.role === "admin";
-        }
-      } catch (e) {}
-    }
-    return false;
+    const res = await api.put("/auth/profile", data);
+    setUser(res.user);
+    return res;
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        initiateLogin, // [NEW]
-        login,
-        logout,
-        forgotPassword,
-        resetPassword,
-        updateProfile,
-        isLoggedIn: !!token,
-        isAdmin: checkIsAdmin(),
-      }}
-    >
+    <AuthContext.Provider value={{
+      user, token, loading,
+      initiateLogin, // Exposed to LoginPage
+      login, logout, forgotPassword, resetPassword, updateProfile,
+      isLoggedIn: !!token,
+      isAdmin: user?.role === "admin"
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -121,8 +77,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth error");
   return context;
 };
