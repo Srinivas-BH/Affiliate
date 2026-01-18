@@ -15,7 +15,6 @@ const validateEmail = (email) => {
 
 /**
  * STEP 1: Initiate Login
- * Decides if we need a Password (Admin) or OTP (User)
  */
 exports.initiateLogin = async (req, res) => {
   try {
@@ -25,7 +24,6 @@ exports.initiateLogin = async (req, res) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
-    // CASE 1: Admin Login -> Request Password
     if (cleanEmail === ADMIN_EMAIL) {
       return res.json({
         success: true,
@@ -34,33 +32,27 @@ exports.initiateLogin = async (req, res) => {
       });
     }
 
-    // CASE 2: User Login -> Send OTP
     let user = await User.findOne({ email: cleanEmail });
 
-    // Auto-create user if not exists
     if (!user) {
       user = await User.create({
         email: cleanEmail,
         role: "user",
         isEmailVerified: false,
       });
-      // Send welcome email in background
       sendWelcomeEmail(cleanEmail, "").catch(e => console.error("Welcome email failed", e));
     }
 
-    // Generate & Save OTP
     const otp = generateOTP();
     user.otp = otp;
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); 
     await user.save();
 
-    // Send OTP Email
     try {
       await sendOTPEmail(cleanEmail, otp);
       console.log(`✅ Login OTP sent to ${cleanEmail}`);
     } catch (err) {
-      console.error(`❌ Failed to send OTP to ${cleanEmail}:`, err.message);
-      return res.status(500).json({ error: "Could not send verification code. Check email settings." });
+      return res.status(500).json({ error: "Could not send verification code." });
     }
 
     return res.json({
@@ -68,31 +60,28 @@ exports.initiateLogin = async (req, res) => {
       mode: "OTP",
       message: `Verification code sent to ${cleanEmail}`,
     });
-
   } catch (error) {
-    console.error("Initiate Login Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 /**
  * STEP 2: Finalize Login
- * Verifies Password (Admin) or OTP (User)
  */
 exports.login = async (req, res) => {
   try {
     const { email, password, otp } = req.body;
     const cleanEmail = email.toLowerCase().trim();
 
-    // --- ADMIN VERIFICATION ---
     if (cleanEmail === ADMIN_EMAIL) {
-      if (!password) return res.status(400).json({ error: "Password required for Admin" });
-
       const admin = await User.findOne({ email: cleanEmail });
-      if (!admin) return res.status(401).json({ error: "Admin not initialized. Run initAdmin script." });
+      if (!admin) return res.status(401).json({ error: "Admin not initialized." });
 
       const isMatch = await admin.comparePassword(password);
       if (!isMatch) return res.status(401).json({ error: "Invalid Admin Password" });
+
+      admin.lastActive = new Date();
+      await admin.save();
 
       const token = generateToken(admin);
       return res.json({
@@ -102,24 +91,15 @@ exports.login = async (req, res) => {
       });
     }
 
-    // --- USER VERIFICATION ---
     const user = await User.findOne({ email: cleanEmail });
     if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.otp !== otp) return res.status(401).json({ error: "Invalid Code" });
+    if (new Date() > user.otpExpiry) return res.status(401).json({ error: "Code expired" });
 
-    if (!otp) return res.status(400).json({ error: "Verification Code (OTP) is required" });
-
-    // Verify OTP
-    if (user.otp !== otp) return res.status(401).json({ error: "Invalid Verification Code" });
-    if (new Date() > user.otpExpiry) return res.status(401).json({ error: "Code expired. Please try again." });
-
-    // Success: Clear OTP & Login
     user.otp = null;
     user.otpExpiry = null;
     user.isEmailVerified = true;
-    
-    // SECURITY: Ensure old admin email is demoted if logging in via OTP flow
-    if (user.role === 'admin') user.role = 'user'; 
-    
+    user.lastActive = new Date();
     await user.save();
 
     const token = generateToken(user);
@@ -128,17 +108,57 @@ exports.login = async (req, res) => {
       token,
       user: { id: user._id, email: user.email, role: "user", name: user.name },
     });
-
   } catch (error) {
-    console.error("Login Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// --- KEEP EXISTING FUNCTIONS ---
+/**
+ * NEW: Get User Statistics for Admin Analytics
+ */
+exports.getAdminUserStats = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments({ role: "user" });
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const activeUsers = await User.countDocuments({
+      role: "user",
+      lastActive: { $gte: fiveMinutesAgo }
+    });
+
+    res.json({
+      success: true,
+      stats: { totalUsers, activeUsers }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * NEW: Fetch all users for the admin list
+ */
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({ role: "user" }).select("-password -otp").sort({ createdAt: -1 });
+    res.json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * NEW: Heartbeat Tracker Logic
+ */
+exports.handleHeartbeat = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, { lastActive: new Date() });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.forgotPassword = async (req, res) => {
-  /* Copy existing forgotPassword logic from previous version */
-  // Shortened for brevity - logic remains: find user -> send OTP
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "Email required" });
@@ -147,15 +167,14 @@ exports.forgotPassword = async (req, res) => {
     
     const otp = generateOTP();
     user.otp = otp;
-    user.otpExpiry = new Date(Date.now() + 10*60*1000);
+    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
-    try { await sendOTPEmail(email, otp); } catch(e) {}
+    try { await sendOTPEmail(email, otp); } catch (e) {}
     res.json({ success: true, message: "OTP sent" });
   } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.resetPassword = async (req, res) => {
-  /* Copy existing resetPassword logic */
   try {
     const { email, otp, newPassword } = req.body;
     const user = await User.findOne({ email });
@@ -168,22 +187,22 @@ exports.resetPassword = async (req, res) => {
 };
 
 exports.getCurrentUser = async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password -otp");
-  res.json({ success: true, user });
+  try {
+    const user = await User.findById(req.user.id).select("-password -otp");
+    res.json({ success: true, user });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.updateProfile = async (req, res) => {
-  const user = await User.findByIdAndUpdate(req.user.id, req.body, { new: true });
-  res.json({ success: true, user });
-};
-
-exports.setupAdmin = async (req, res) => {
-  // Logic to set up admin password initially if needed
-  // (Usually handled by initAdmin script, but kept for compatibility)
-  res.status(403).json({ error: "Use server script to setup admin" });
+  try {
+    const user = await User.findByIdAndUpdate(req.user.id, req.body, { new: true });
+    res.json({ success: true, user });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.checkAdminStatus = async (req, res) => {
-  const admin = await User.findOne({ email: ADMIN_EMAIL });
-  res.json({ success: true, isAdminSetup: !!(admin && admin.password) });
+  try {
+    const admin = await User.findOne({ email: ADMIN_EMAIL });
+    res.json({ success: true, isAdminSetup: !!(admin && admin.password) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 };

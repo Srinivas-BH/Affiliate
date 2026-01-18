@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import AdminNavbar from "../components/AdminNavbar";
 
 export default function AdminAnalyticsPage() {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -14,7 +16,6 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     fetchAnalytics();
-    // Refresh the dashboard every 30 seconds to update "Live Now" count
     const interval = setInterval(fetchAnalytics, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -24,7 +25,7 @@ export default function AdminAnalyticsPage() {
       const [userRes, productRes, requestRes] = await Promise.all([
         api.get("/auth/admin/stats").catch(() => ({ stats: { totalUsers: 0, activeUsers: 0 } })),
         api.get("/products/admin/stats").catch(() => ({ stats: [] })),
-        api.get("/requests/admin/stats").catch(() => ({ stats: {} })),
+        api.get("/requests/admin/stats").catch(() => ({ stats: { byStatus: [] } })),
       ]);
 
       setAnalytics({
@@ -58,13 +59,17 @@ export default function AdminAnalyticsPage() {
         </h1>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {/* Total Users */}
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+          {/* TOTAL USERS CARD - CLICKABLE */}
+          <div 
+            onClick={() => navigate("/admin/users")}
+            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500 cursor-pointer hover:bg-blue-50 transition-all transform hover:scale-105"
+          >
             <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">Total Users</p>
             <p className="text-3xl font-black text-gray-800">{analytics.totalUsers}</p>
+            <p className="text-xs text-blue-600 mt-2 font-bold">View user list →</p>
           </div>
 
-          {/* REAL-TIME LIVE CARD */}
+          {/* LIVE NOW CARD */}
           <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500 relative">
             <div className="flex items-center justify-between">
               <div>
@@ -80,13 +85,11 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* Live Products */}
           <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
             <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">Live Products</p>
             <p className="text-3xl font-black text-gray-800">{analytics.totalProducts}</p>
           </div>
 
-          {/* User Requests */}
           <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
             <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">User Requests</p>
             <p className="text-3xl font-black text-gray-800">{analytics.totalRequests}</p>
@@ -119,7 +122,10 @@ export default function AdminAnalyticsPage() {
                        `📦 ${item.platform}`}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.category}</td>
+                    
+                    {/* Maps to the field projected from the backend */}
                     <td className="px-6 py-4 text-gray-900 font-semibold">{item.productName}</td>
+                    
                     <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-blue-600">
                       ₹{item.avgPrice?.toLocaleString()}
                     </td>

@@ -8,10 +8,13 @@ export default function HeartbeatTracker() {
   useEffect(() => {
     if (!isLoggedIn || !token) return;
 
-    // Ping every 3 minutes
+    // Immediate ping on load so they show up instantly
+    api.post('/auth/heartbeat').catch(() => {});
+
+    // Ping every 30 seconds for better real-time accuracy
     const interval = setInterval(() => {
       api.post('/auth/heartbeat').catch(() => {});
-    }, 3 * 60 * 1000); 
+    }, 30 * 1000); 
 
     return () => clearInterval(interval);
   }, [isLoggedIn, token]);

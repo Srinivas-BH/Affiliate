@@ -19,6 +19,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminProductsPage from "./pages/AdminProductsPage";
 import AdminUserRequestsPage from "./pages/AdminUserRequestsPage";
 import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
+import AdminUsersListPage from "./pages/AdminUsersListPage"; // New Page
 
 import "./index.css";
 
@@ -26,7 +27,6 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        {/* The HeartbeatTracker runs globally to update "Live Now" status */}
         <HeartbeatTracker />
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -34,7 +34,6 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/admin/setup" element={<AdminSetupPage />} />
           
-          {/* Protected User Routes */}
           <Route
             path="/dashboard"
             element={
@@ -117,8 +116,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute adminOnly={true}>
+                <AdminUsersListPage />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Catch all */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>

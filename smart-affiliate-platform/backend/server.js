@@ -1,4 +1,3 @@
-
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -13,9 +12,15 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// UPDATED CORS: Added support for local network IP so pings from other PCs work
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "http://localhost:3000",
+      /^http:\/\/192\.168\.\d+\.\d+:3000$/ // Allows any IP on your local network
+    ],
     credentials: true,
   })
 );
@@ -38,6 +43,7 @@ const authRoutes = require("./routes/authRoutes");
 const productRoutes = require("./routes/productRoutes");
 const userRequestRoutes = require("./routes/userRequestRoutes");
 
+// These routes now include the /heartbeat and /admin/stats endpoints
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/requests", userRequestRoutes);
