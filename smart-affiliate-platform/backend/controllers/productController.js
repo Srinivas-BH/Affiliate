@@ -50,8 +50,8 @@ exports.addProduct = async (req, res) => {
     const productData = await prepareProductData(req.body, req.user.id);
     const product = await Product.create(productData);
     
-    // Trigger notification logic asynchronously
-    exports.saveAndNotify(product);
+    // Trigger notification logic
+    await exports.saveAndNotify(product);
     
     res.status(201).json({ success: true, product });
   } catch (error) {
@@ -60,15 +60,19 @@ exports.addProduct = async (req, res) => {
 };
 
 /**
- * Notification logic: Matches users based on category, price, and platform
+ * Save product and notify matching user requests
+ * Matches users based on category, price, and platform
  */
 exports.saveAndNotify = async (product) => {
   try {
+    // Find matching user requests (Active only)
     const matches = await UserRequest.find({
       "parsedTags.category": { $regex: product.category, $options: "i" },
       isFulfilled: false,
       status: "ACTIVE",
     });
+
+    console.log(`Found ${matches.length} matching requests for product: ${product.title}`);
 
     for (const request of matches) {
       // 1. Precise Filtering
@@ -88,13 +92,14 @@ exports.saveAndNotify = async (product) => {
         request.matchedProducts.push(product._id);
         request.notificationsSent.push({ productId: product._id, sentAt: new Date() });
 
-        // Fulfillment threshold (Set to 1 per main branch requirements)
+        // 4. Mark Fulfilled (Threshold = 1 as per Main branch)
         if (request.matchedProducts.length >= 1) {
           request.isFulfilled = true;
           request.status = "FULFILLED";
         }
         
         await request.save();
+        console.log(`✅ Request Fulfilled! Notified ${request.userEmail} for ${product.title}`);
       } catch (err) {
         console.error(`Notification failed for ${request.userEmail}:`, err.message);
       }
@@ -171,7 +176,7 @@ exports.updateProduct = async (req, res) => {
     if (!product) return res.status(404).json({ error: "Product not found" });
     
     // Re-trigger notifications (e.g., if price was updated to fit a user's budget)
-    exports.saveAndNotify(product);
+    await exports.saveAndNotify(product);
     
     res.json({ success: true, product });
   } catch (error) {

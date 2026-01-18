@@ -4,7 +4,6 @@ import api from "../utils/api";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  // Initialize user from localStorage if available
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -12,7 +11,6 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Fetch current user on mount
   useEffect(() => {
     const fetchUser = async () => {
       if (token) {
@@ -21,27 +19,31 @@ export const AuthProvider = ({ children }) => {
           setUser(response.user);
           localStorage.setItem("user", JSON.stringify(response.user));
         } catch (error) {
-          console.error("Fetch user error:", error);
           if (error.response?.status === 401) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            setToken(null);
-            setUser(null);
+            logout();
           }
         }
-      } else {
-        setUser(null);
-        localStorage.removeItem("user");
       }
       setLoading(false);
     };
-
     fetchUser();
   }, [token]);
 
-  const login = async (email, password = null) => {
+  // Step 1: Initiate Login (Check Email)
+  const initiateLogin = async (email) => {
     try {
-      const response = await api.post("/auth/login", { email, password });
+      const response = await api.post("/auth/login-init", { email });
+      return response; // Returns { mode: 'PASSWORD' | 'OTP', message: ... }
+    } catch (error) {
+      console.error("Initiate login error:", error);
+      throw error;
+    }
+  };
+
+  // Step 2: Finalize Login (Verify)
+  const login = async (email, password = null, otp = null) => {
+    try {
+      const response = await api.post("/auth/login", { email, password, otp });
       
       if (!response || !response.token || !response.user) {
         throw new Error("Invalid response from server");
@@ -65,16 +67,6 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-  };
-
-  const deleteAccount = async () => {
-    try {
-      await api.delete("/auth/profile");
-      logout();
-    } catch (error) {
-      console.error("Delete account error:", error);
-      throw error;
-    }
   };
 
   const forgotPassword = async (email) => {
@@ -101,9 +93,7 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(savedUser);
           return parsedUser?.role === "admin";
         }
-      } catch (e) {
-        return false;
-      }
+      } catch (e) {}
     }
     return false;
   };
@@ -114,9 +104,9 @@ export const AuthProvider = ({ children }) => {
         user,
         token,
         loading,
+        initiateLogin, // [NEW]
         login,
         logout,
-        deleteAccount,
         forgotPassword,
         resetPassword,
         updateProfile,

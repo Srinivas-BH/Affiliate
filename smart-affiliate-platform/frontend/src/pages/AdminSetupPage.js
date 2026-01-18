@@ -165,7 +165,7 @@ export default function AdminSetupPage() {
               </label>
               <input
                 type="email"
-                value="bhsrinivas94@gmail.com"
+                value="discyra2026@gmail.com"
                 disabled
                 className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
               />
