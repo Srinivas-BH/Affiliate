@@ -1,19 +1,19 @@
 /**
  * Initialize Admin Account Script
  * Run this script once to set up the admin account with the default password
- * * Usage: node scripts/initAdmin.js
+ * Usage: node scripts/initAdmin.js
  */
 
 require("dotenv").config();
 const mongoose = require("mongoose");
 const User = require("../models/User");
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "bhsrinivas94@gmail.com";
+// [UPDATED] New Admin Email
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "discyra2026@gmail.com";
 const ADMIN_PASSWORD = "SBHaff$2706"; // Default admin password
 
 const initAdmin = async () => {
   try {
-    // Connect to MongoDB
     await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/smart-affiliate");
     console.log("Connected to MongoDB");
 
@@ -22,8 +22,6 @@ const initAdmin = async () => {
 
     if (admin) {
       // Update existing admin
-      // IMPORTANT: We pass the PLAIN TEXT password. 
-      // The User model in 'models/User.js' will automatically hash it during .save()
       admin.password = ADMIN_PASSWORD; 
       admin.role = "admin";
       admin.name = admin.name || "Admin";
@@ -35,7 +33,7 @@ const initAdmin = async () => {
       // Create new admin
       admin = new User({
         email: ADMIN_EMAIL,
-        password: ADMIN_PASSWORD, // Pass PLAIN TEXT here too
+        password: ADMIN_PASSWORD,
         role: "admin",
         name: "Admin",
         isEmailVerified: true,
