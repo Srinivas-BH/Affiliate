@@ -5,6 +5,9 @@ const { sendProductNotification } = require("../utils/mailer");
 
 /**
  * Submit Notify Me request (User)
+ * - Parses query using NLP
+ * - Checks for immediate matches
+ * - Updates status to FULFILLED if immediate match found
  */
 exports.submitNotifyRequest = async (req, res) => {
   try {
@@ -61,7 +64,7 @@ exports.submitNotifyRequest = async (req, res) => {
       }
     }
 
-    // [FIX] If we found at least 1 match immediately, mark as FULFILLED
+    // [CRITICAL FIX] If we found at least 1 match immediately, mark as FULFILLED
     if (userRequest.notificationsSent.length >= 1) {
       userRequest.status = "FULFILLED";
       userRequest.isFulfilled = true;
@@ -120,6 +123,30 @@ exports.getUserRequests = async (req, res) => {
 };
 
 /**
+ * [NEW] Get ALL requests for Admin Dashboard
+ * This function is specifically called by AdminUserRequestsPage.js
+ * It returns EVERYTHING (Active & Fulfilled) so the frontend tabs work.
+ */
+exports.getAllRequestsAdmin = async (req, res) => {
+  try {
+    // Fetch all requests, populate matched products to show details in "Completed" tab
+    const requests = await UserRequest.find({})
+      .populate("matchedProducts", "title price platform affiliateLink") 
+      .populate("userId", "name email")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: requests.length,
+      requests,
+    });
+  } catch (error) {
+    console.error("Get all requests admin error:", error);
+    res.status(500).json({ error: "Failed to fetch requests" });
+  }
+};
+
+/**
  * Cancel notify request
  */
 exports.cancelRequest = async (req, res) => {
@@ -147,7 +174,7 @@ exports.cancelRequest = async (req, res) => {
 };
 
 /**
- * Get all notify requests (Admin - for monitoring)
+ * Get all notify requests (Paginated / Filtered)
  */
 exports.getAllRequests = async (req, res) => {
   try {
